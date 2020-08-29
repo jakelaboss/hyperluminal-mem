@@ -111,7 +111,6 @@ To store symbol as unboxed reference, use MSET-UNBOXED or MWRITE."
   (setf index (%mwrite-package ptr index end-index (symbol-package sym)))
 
   (mwrite-box/string-utf-8 ptr index end-index (symbol-name sym)))
-    
 
 (defun %read-interactive-symbol ()
   (let ((io *query-io*))
@@ -121,6 +120,12 @@ To store symbol as unboxed reference, use MSET-UNBOXED or MWRITE."
       (check-type sym symbol)
       (multiple-value-list sym))))
 
+(defun mkstr (&rest args)
+  (with-output-to-string (s)
+    (dolist (a args) (princ a s))))
+
+(defun symb (&rest args)
+  (values (intern (apply #'mkstr args))))
 
 (defun mread-box/symbol (ptr index end-index)
   "Read a symbol from the memory starting at (PTR+INDEX) and return it.
@@ -139,19 +144,7 @@ To read symbol stored as unboxed reference, use MGET-UNBOXED or MREAD."
       (values
        (if pkg
            (let ((sym (find-symbol sym-name pkg)))
-             (unless sym
-               (let ((pkg-name (if (typep pkg 'package) (package-name pkg) pkg)))
-
-                 #+(and)
-                 (error "Deserialization error: symbol ~A not found in package ~A" sym pkg-name)
-               
-                 #-(and) ;; reading from *query-io* is always safe?
-                 (restart-case
-                     (error "Deserialization error: symbol ~A not found in package ~A" sym pkg-name)
-                   (store-symbol (new-sym)
-                     :report "Supply a new symbol."
-                     :interactive %read-interactive-symbol
-                     (setf sym new-sym)))))
-             sym)
-           (make-symbol (the simple-string sym-name)))
+             (if sym sym
+	       (symb sym-name)))
+	   (make-symbol (the simple-string sym-name)))
        index))))
